@@ -75,30 +75,30 @@ canvas { display:block; }
 .select-sub { color:rgba(255,255,255,0.4); font-size:0.95rem; margin-bottom:20px; letter-spacing:2px; }
 
 .personas-grid {
-  display:grid; grid-template-columns:repeat(auto-fit, minmax(240px, 1fr));
-  gap:16px; width:100%; max-width:1050px; padding:0 10px;
+  display:grid; grid-template-columns:repeat(2, 1fr);
+  gap:12px; width:100%; max-width:1050px; padding:0 10px; box-sizing:border-box;
 }
 .persona-card {
   background: rgba(255,255,255,0.04); border:2px solid rgba(255,255,255,0.08);
-  border-radius:16px; padding:20px; text-align:center; cursor:pointer;
-  transition:all 0.4s; position:relative; overflow:hidden;
+  border-radius:16px; padding:14px 10px; text-align:center; cursor:pointer;
+  transition:all 0.4s; position:relative; overflow:hidden; min-width:0;
 }
 .persona-card:hover { border-color:rgba(255,255,255,0.25); transform:translateY(-4px); }
 .persona-card.selected { border-color:#e63946; background:rgba(230,57,70,0.1);
   box-shadow: 0 0 30px rgba(230,57,70,0.3); }
 
 .persona-preview {
-  width:100%; height:160px; border-radius:10px;
-  background:rgba(0,0,0,0.3); margin-bottom:12px; position:relative; overflow:hidden;
+  width:100%; height:clamp(110px,22vw,160px); border-radius:10px;
+  background:rgba(0,0,0,0.3); margin-bottom:8px; position:relative; overflow:hidden;
 }
 .persona-preview canvas { width:100%!important; height:100%!important; border-radius:10px; }
 
-.persona-name { font-family:'Orbitron',monospace; font-size:1.1rem; color:#fff; font-weight:700; }
-.persona-vehicle { color:rgba(255,255,255,0.5); font-size:0.85rem; margin-top:4px; }
-.persona-stats { display:flex; justify-content:center; gap:16px; margin-top:10px; }
-.stat { text-align:center; }
-.stat-label { font-size:0.65rem; color:rgba(255,255,255,0.35); text-transform:uppercase; letter-spacing:1px; }
-.stat-bar { width:60px; height:4px; background:rgba(255,255,255,0.1); border-radius:2px; margin-top:3px; }
+.persona-name { font-family:'Orbitron',monospace; font-size:clamp(0.85rem,2.5vw,1.1rem); color:#fff; font-weight:700; }
+.persona-vehicle { color:rgba(255,255,255,0.5); font-size:clamp(0.7rem,2vw,0.85rem); margin-top:4px; line-height:1.3; }
+.persona-stats { display:flex; justify-content:center; gap:8px; margin-top:10px; }
+.stat { text-align:center; flex:1; min-width:0; }
+.stat-label { font-size:0.6rem; color:rgba(255,255,255,0.35); text-transform:uppercase; letter-spacing:0.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.stat-bar { width:100%; max-width:60px; height:4px; background:rgba(255,255,255,0.1); border-radius:2px; margin:3px auto 0; }
 .stat-fill { height:100%; border-radius:2px; background:#e63946; }
 
 .start-race-btn {
@@ -276,54 +276,8 @@ canvas { display:block; }
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="sound.js"></script>
 <script>
-// ============ AUDIO ENGINE ============
-const AudioCtx = window.AudioContext || window.webkitAudioContext;
-let audioCtx;
-function ensureAudio(){ if(!audioCtx) audioCtx = new AudioCtx(); }
-
-function playEngine(freq, vol=0.08){
-  ensureAudio();
-  const o=audioCtx.createOscillator(), g=audioCtx.createGain();
-  const o2=audioCtx.createOscillator();
-  o.type='sawtooth'; o.frequency.value=freq;
-  o2.type='square'; o2.frequency.value=freq*0.5;
-  const gn=audioCtx.createGain(); gn.gain.value=vol*0.3;
-  g.gain.value=vol;
-  o.connect(g); o2.connect(gn); g.connect(audioCtx.destination); gn.connect(audioCtx.destination);
-  o.start(); o2.start();
-  return {osc:o,osc2:o2,gain:g,gain2:gn, setFreq(f){o.frequency.value=f;o2.frequency.value=f*0.5;},
-    stop(){g.gain.exponentialRampToValueAtTime(0.001,audioCtx.currentTime+0.3);
-      gn.gain.exponentialRampToValueAtTime(0.001,audioCtx.currentTime+0.3);
-      setTimeout(()=>{o.stop();o2.stop();},400);}};
-}
-
-function playCrash(){
-  ensureAudio();
-  const buf=audioCtx.createBuffer(1,audioCtx.sampleRate*0.5,audioCtx.sampleRate);
-  const d=buf.getChannelData(0);
-  for(let i=0;i<d.length;i++) d[i]=(Math.random()*2-1)*Math.exp(-i/(audioCtx.sampleRate*0.08));
-  const s=audioCtx.createBufferSource(), g=audioCtx.createGain();
-  s.buffer=buf; g.gain.value=0.5; s.connect(g); g.connect(audioCtx.destination); s.start();
-}
-
-function playPothole(){
-  ensureAudio();
-  const o=audioCtx.createOscillator(),g=audioCtx.createGain();
-  o.type='sine'; o.frequency.value=80;
-  o.frequency.exponentialRampToValueAtTime(30,audioCtx.currentTime+0.3);
-  g.gain.value=0.2; g.gain.exponentialRampToValueAtTime(0.001,audioCtx.currentTime+0.4);
-  o.connect(g); g.connect(audioCtx.destination); o.start(); o.stop(audioCtx.currentTime+0.5);
-}
-
-function playLaneChange(){
-  ensureAudio();
-  const o=audioCtx.createOscillator(),g=audioCtx.createGain();
-  o.type='sine'; o.frequency.value=300;
-  o.frequency.exponentialRampToValueAtTime(500,audioCtx.currentTime+0.08);
-  g.gain.value=0.06; g.gain.exponentialRampToValueAtTime(0.001,audioCtx.currentTime+0.12);
-  o.connect(g); g.connect(audioCtx.destination); o.start(); o.stop(audioCtx.currentTime+0.15);
-}
 
 // ============ PERSONAS ============
 const PERSONAS = [
@@ -333,8 +287,8 @@ const PERSONAS = [
     speed:0.85, handling:0.95, accel:0.9, engineFreq:110, type:'hatch' },
   { id:2, name:'James', vehicle:'Black Hyundai i20', color:0x222222, bodyColor:0x1a1a1a,
     speed:0.9, handling:0.9, accel:0.95, engineFreq:100, type:'hatch2' },
-  { id:3, name:'Nizam', vehicle:'Blue Suzuki Jupiter', color:0x2266cc, bodyColor:0x2255bb,
-    speed:0.7, handling:1.0, accel:1.0, engineFreq:160, type:'scooter' }
+  { id:3, name:'Nizam', vehicle:'Blue TVS Jupiter', color:0x2266cc, bodyColor:0x2255bb,
+    speed:0.55, handling:1.0, accel:0.8, engineFreq:160, type:'scooter' }
 ];
 
 let selectedPersona = -1;
@@ -1104,13 +1058,8 @@ function selectPersona(id){
   document.querySelectorAll('.persona-card').forEach(c=>c.classList.remove('selected'));
   document.querySelector(`.persona-card[data-id="${id}"]`).classList.add('selected');
   document.getElementById('start-btn').classList.add('ready');
-  // Play engine sound preview
-  ensureAudio();
-  const p=PERSONAS[id];
-  const o=audioCtx.createOscillator(),gg=audioCtx.createGain();
-  o.type='sawtooth';o.frequency.value=p.engineFreq;
-  gg.gain.value=0.06;gg.gain.exponentialRampToValueAtTime(0.001,audioCtx.currentTime+0.6);
-  o.connect(gg);gg.connect(audioCtx.destination);o.start();o.stop(audioCtx.currentTime+0.7);
+  playEnginePreview(PERSONAS[id].engineFreq);
+  playClick();
 }
 
 // ============ SCREENS ============
@@ -1140,6 +1089,11 @@ let road=[], roadMarkings=[];
 let traffic=[], potholes=[];
 let skidMarks=[];
 let engineSound=null;
+
+// Sound state
+let lastMilestone=0;
+let hornCooldown=0;
+let activeSiren=false;
 
 // State
 let gameState='menu'; // menu, playing, over
@@ -1216,6 +1170,7 @@ function initGame(){
   currentLane=1; targetLaneX=0;
   crashed=false;
   spawnTimer=0; potholeSpawnTimer=0;
+  lastMilestone=0; hornCooldown=0; activeSiren=false;
 
   // Engine
   const p=PERSONAS[selectedPersona];
@@ -1377,8 +1332,16 @@ function checkCollisions(){
     const tl=(t.userData.type==='bus')?3:(t.userData.type==='lorry')?2.5:
              (t.userData.type==='ambulance')?2:(t.userData.type==='auto')?0.8:1.5;
 
-    if(Math.abs(pp.x-tp.x)<(pw+tw) && Math.abs(pp.z-tp.z)<(pl+tl)){
+    const dx=Math.abs(pp.x-tp.x), dz=Math.abs(pp.z-tp.z);
+    if(dx<(pw+tw) && dz<(pl+tl)){
       return t;
+    }
+    // Near-miss detection
+    if(!t.userData.nearMissed && dx<(pw+tw+0.6) && dz<(pl+tl+0.5)){
+      if(tp.z < pp.z){
+        t.userData.nearMissed=true;
+        playNearMiss();
+      }
     }
   }
 
@@ -1400,6 +1363,7 @@ function triggerCrash(trafficVehicle){
   crashed=true; gameState='over';
   playCrash();
   if(engineSound) engineSound.stop();
+  stopSiren();
   shakeIntensity=1.0;
 
   // Crash animation - tilt player
@@ -1418,6 +1382,7 @@ function triggerCrash(trafficVehicle){
   if(score>highScore){
     highScore=score;
     localStorage.setItem('rr_highscore',highScore);
+    setTimeout(()=>playHighScore(), 600);
   }
 
   setTimeout(()=>{
@@ -1552,10 +1517,39 @@ function gameLoop(){
       spawnPothole();
     }
 
-    // Move traffic
+    // Move traffic & traffic sounds
+    hornCooldown=Math.max(0, hornCooldown-dt);
+    let hasAmbulance=false;
     traffic.forEach(t=>{
       t.position.z-=t.userData.speed*dt;
+      // Whoosh when traffic passes player
+      if(!t.userData.passed && t.position.z < playerGroup.position.z-3){
+        t.userData.passed=true;
+        playWhoosh(playerSpeed);
+      }
+      // Random horn from nearby traffic
+      if(hornCooldown<=0 && !t.userData.honked && Math.abs(t.position.z-playerGroup.position.z)<15){
+        if(Math.random()<0.003){
+          t.userData.honked=true;
+          playHorn(t.userData.type);
+          hornCooldown=2.0;
+        }
+      }
+      // Track ambulance proximity for siren
+      if(t.userData.type==='ambulance' && Math.abs(t.position.z-playerGroup.position.z)<40){
+        hasAmbulance=true;
+      }
     });
+    // Ambulance siren management
+    if(hasAmbulance && !activeSiren){ startSiren(); activeSiren=true; }
+    if(!hasAmbulance && activeSiren){ stopSiren(); activeSiren=false; }
+
+    // Score milestones (every 100 points)
+    const milestoneCheck=Math.floor(score/100);
+    if(milestoneCheck>lastMilestone && score>0){
+      lastMilestone=milestoneCheck;
+      playMilestone();
+    }
 
     // Check collision
     const hit=checkCollisions();
@@ -1667,6 +1661,7 @@ function goToMenu(){
 function cleanup(){
   if(engineSound) engineSound.stop();
   engineSound=null;
+  stopSiren(); activeSiren=false;
   traffic.forEach(t=>scene.remove(t));
   traffic=[];
   potholes.forEach(p=>{scene.remove(p);if(p.userData.ring)scene.remove(p.userData.ring);});
